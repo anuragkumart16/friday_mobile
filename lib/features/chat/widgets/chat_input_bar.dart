@@ -46,6 +46,7 @@ class ChatInputBar extends StatelessWidget {
           Expanded(
             child: TextField(
               controller: messageController,
+              autofocus: true,
               style: const TextStyle(color: Colors.white),
               onSubmitted: (_) => onSend(),
               decoration: InputDecoration(
