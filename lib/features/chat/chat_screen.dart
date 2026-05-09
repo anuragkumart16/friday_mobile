@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:markdown/markdown.dart' as md;
 import '../menu/menu_screen.dart';
 import '../vault/vault_screen.dart';
 
@@ -14,6 +19,29 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, String>> _messages = [];
+  final FlutterTts _flutterTts = FlutterTts();
+  int? _speakingIndex;
+  bool _isSpeaking = false;
+  String _currentTtsContent = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _flutterTts.setCompletionHandler(() {
+      setState(() {
+        _speakingIndex = null;
+        _isSpeaking = false;
+        _currentTtsContent = '';
+      });
+    });
+    _flutterTts.setCancelHandler(() {
+      setState(() {
+        _speakingIndex = null;
+        _isSpeaking = false;
+        _currentTtsContent = '';
+      });
+    });
+  }
 
   void _sendMessage() {
     final text = _messageController.text.trim();
@@ -71,10 +99,29 @@ Feel free to ask me anything!
 ''';
   }
 
+  String _stripMarkdownForTts(String markdown) {
+    String html = md.markdownToHtml(markdown);
+    // Add pauses after headings
+    html = html.replaceAll('</h1>', '.</h1>');
+    html = html.replaceAll('</h2>', '.</h2>');
+    html = html.replaceAll('</h3>', '.</h3>');
+    html = html.replaceAll('</h4>', '.</h4>');
+    // Add pauses after list items
+    html = html.replaceAll('</li>', ',</li>');
+    // Remove code blocks from speech
+    html = html.replaceAll(RegExp('<code>[^<]*</code>'), '');
+    html = html.replaceAll(RegExp('<pre>[^<]*</pre>'), '');
+    // Strip all HTML tags
+    final plainText = html.replaceAll(RegExp('<[^>]*>'), ' ');
+    return plainText.split(RegExp('[ \t\n\r]+')).join(' ').trim();
+  }
+
+
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
+    _flutterTts.stop();
     super.dispose();
   }
 
@@ -164,33 +211,112 @@ Feel free to ask me anything!
                         }
 
                         // Bot message — rendered markdown, no bubble
+                        final content = message['content'] ?? '';
                         return Padding(
                           padding: const EdgeInsets.symmetric(vertical: 10),
-                          child: MarkdownBody(
-                            data: message['content'] ?? '',
-                            selectable: true,
-                            styleSheet: MarkdownStyleSheet(
-                              p: const TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
-                              h1: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                              h2: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-                              h3: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
-                              listBullet: const TextStyle(color: Colors.white, fontSize: 15),
-                              strong: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                              em: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
-                              code: const TextStyle(color: Color(0xFF89D4CF), fontSize: 14, fontFamily: 'monospace'),
-                              codeblockDecoration: BoxDecoration(
-                                color: const Color(0xFF1E1E1E),
-                                borderRadius: BorderRadius.circular(8),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              MarkdownBody(
+                                data: content,
+                                selectable: true,
+                                styleSheet: MarkdownStyleSheet(
+                                  p: const TextStyle(color: Colors.white, fontSize: 15, height: 1.6),
+                                  h1: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                                  h2: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                                  h3: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+                                  listBullet: const TextStyle(color: Colors.white, fontSize: 15),
+                                  strong: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  em: const TextStyle(color: Colors.white70, fontStyle: FontStyle.italic),
+                                  code: const TextStyle(color: Color(0xFF89D4CF), fontSize: 14, fontFamily: 'monospace'),
+                                  codeblockDecoration: BoxDecoration(
+                                    color: const Color(0xFF1E1E1E),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  codeblockPadding: const EdgeInsets.all(12),
+                                  blockquoteDecoration: BoxDecoration(
+                                    border: Border(left: BorderSide(color: Colors.white24, width: 3)),
+                                  ),
+                                  blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
+                                  horizontalRuleDecoration: BoxDecoration(
+                                    border: Border(top: BorderSide(color: Colors.white12, width: 1)),
+                                  ),
+                                ),
                               ),
-                              codeblockPadding: const EdgeInsets.all(12),
-                              blockquoteDecoration: BoxDecoration(
-                                border: Border(left: BorderSide(color: Colors.white24, width: 3)),
+                              const SizedBox(height: 8),
+                              // Action buttons row
+                              Row(
+                                children: [
+                                  // Copy
+                                  IconButton(
+                                    icon: const Icon(Icons.copy, color: Colors.white38, size: 18),
+                                    tooltip: 'Copy',
+                                    onPressed: () {
+                                      Clipboard.setData(ClipboardData(text: content));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Copied to clipboard'), duration: Duration(seconds: 1)),
+                                      );
+                                    },
+                                  ),
+                                  // Share
+                                  IconButton(
+                                    icon: const Icon(Icons.share, color: Colors.white38, size: 18),
+                                    tooltip: 'Share',
+                                    onPressed: () {
+                                      Share.share(content);
+                                    },
+                                  ),
+                                  // Add to Vault
+                                  IconButton(
+                                    icon: const Icon(Icons.lock_outline, color: Colors.white38, size: 18),
+                                    tooltip: 'Add to Vault',
+                                    onPressed: () {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Added to Vault'), duration: Duration(seconds: 1)),
+                                      );
+                                    },
+                                  ),
+                                  // Speaker (TTS) with controls
+                                  if (_speakingIndex == index) ...[
+                                    // Stop button
+                                    IconButton(
+                                      icon: const Icon(Icons.stop, color: Colors.redAccent, size: 18),
+                                      tooltip: 'Stop',
+                                      onPressed: () async {
+                                        await _flutterTts.stop();
+                                        setState(() {
+                                          _speakingIndex = null;
+                                          _isSpeaking = false;
+                                          _currentTtsContent = '';
+                                        });
+                                      },
+                                    ),
+                                    // Replay button
+                                    IconButton(
+                                      icon: const Icon(Icons.replay, color: Colors.white38, size: 18),
+                                      tooltip: 'Replay',
+                                      onPressed: () async {
+                                        await _flutterTts.stop();
+                                        await _flutterTts.speak(_stripMarkdownForTts(content));
+                                      },
+                                    ),
+                                  ] else
+                                    IconButton(
+                                      icon: const Icon(Icons.volume_up, color: Colors.white38, size: 18),
+                                      tooltip: 'Read aloud',
+                                      onPressed: () async {
+                                        await _flutterTts.stop();
+                                        setState(() {
+                                          _speakingIndex = index;
+                                          _isSpeaking = true;
+                                          _currentTtsContent = _stripMarkdownForTts(content);
+                                        });
+                                        await _flutterTts.speak(_currentTtsContent);
+                                      },
+                                    ),
+                                ],
                               ),
-                              blockquotePadding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
-                              horizontalRuleDecoration: BoxDecoration(
-                                border: Border(top: BorderSide(color: Colors.white12, width: 1)),
-                              ),
-                            ),
+                            ],
                           ),
                         );
                       },
@@ -213,7 +339,17 @@ Feel free to ask me anything!
                     child: IconButton(
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.add, color: Colors.white, size: 22),
-                      onPressed: () {},
+                      onPressed: () async {
+                        final result = await FilePicker.platform.pickFiles(
+                          allowMultiple: true,
+                        );
+                        if (result != null && result.files.isNotEmpty) {
+                          final fileNames = result.files.map((f) => f.name).join(', ');
+                          setState(() {
+                            _messages.add({'role': 'user', 'content': '📎 Attached: $fileNames'});
+                          });
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),
