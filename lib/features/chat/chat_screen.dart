@@ -4,6 +4,9 @@ import 'widgets/chat_top_bar.dart';
 import 'widgets/user_message_bubble.dart';
 import 'widgets/bot_message_bubble.dart';
 import 'widgets/chat_input_bar.dart';
+import '../bookmark/models/bookmarked_chat.dart';
+import '../bookmark/services/bookmark_service.dart';
+import 'services/chat_history_service.dart';
 
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
@@ -17,6 +20,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final ScrollController _scrollController = ScrollController();
   final List<Map<String, String>> _messages = [];
   final FlutterTts _flutterTts = FlutterTts();
+  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
   int? _speakingIndex;
 
   @override
@@ -40,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
 
     _messageController.clear();
+    _autoSaveChat();
 
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
@@ -86,6 +91,68 @@ Feel free to ask me anything!
 ''';
   }
 
+  String _getChatTitle() {
+    final firstUserMsg = _messages.firstWhere(
+      (m) => m['role'] == 'user',
+      orElse: () => {'content': 'Chat'},
+    );
+    final content = firstUserMsg['content'] ?? 'Chat';
+    return content.length > 50 ? '${content.substring(0, 50)}...' : content;
+  }
+
+  void _autoSaveChat() {
+    if (_messages.isEmpty) return;
+    final chat = BookmarkedChat(
+      id: _sessionId,
+      title: _getChatTitle(),
+      messages: List<Map<String, String>>.from(_messages),
+      savedAt: DateTime.now(),
+    );
+    ChatHistoryService.saveOrUpdate(chat);
+  }
+
+  void _bookmarkChat() async {
+    if (_messages.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No messages to save'),
+          backgroundColor: Colors.white24,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final chat = BookmarkedChat(
+      id: _sessionId,
+      title: _getChatTitle(),
+      messages: List<Map<String, String>>.from(_messages),
+      savedAt: DateTime.now(),
+    );
+
+    await BookmarkService.saveChat(chat);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Chat saved to bookmarks'),
+          backgroundColor: Colors.white24,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  void _newChat() {
+    // Save current chat to history before starting new one
+    _autoSaveChat();
+    // Replace current screen with a fresh ChatScreen
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const ChatScreen()),
+    );
+  }
+
   @override
   void dispose() {
     _messageController.dispose();
@@ -101,7 +168,7 @@ Feel free to ask me anything!
       body: SafeArea(
         child: Column(
           children: [
-            const ChatTopBar(),
+            ChatTopBar(onBookmark: _bookmarkChat, onNewChat: _newChat),
 
             // Chat messages area
             Expanded(
