@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../../shared/styles/markdown_style.dart';
 import '../../../shared/utils/tts_helper.dart';
+import '../../vault/models/vault_item.dart';
+import '../../vault/services/vault_service.dart';
 
 class BotMessageBubble extends StatelessWidget {
   final String content;
@@ -63,10 +65,19 @@ class BotMessageBubble extends StatelessWidget {
               IconButton(
                 icon: const Icon(Icons.lock_outline, color: Colors.white38, size: 18),
                 tooltip: 'Add to Vault',
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Added to Vault'), duration: Duration(seconds: 1)),
+                onPressed: () async {
+                  final item = VaultItem(
+                    id: DateTime.now().millisecondsSinceEpoch.toString(),
+                    content: content,
+                    role: 'bot',
+                    savedAt: DateTime.now(),
                   );
+                  await VaultService.saveItem(item);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Added to Vault'), duration: Duration(seconds: 1)),
+                    );
+                  }
                 },
               ),
               // Speaker (TTS) with controls

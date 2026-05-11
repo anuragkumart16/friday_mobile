@@ -218,7 +218,18 @@ class _ChatScreenState extends State<ChatScreen> {
                         final isUser = message['role'] == 'user';
 
                         if (isUser) {
-                          return UserMessageBubble(content: message['content'] ?? '');
+                          return UserMessageBubble(
+                            content: message['content'] ?? '',
+                            index: index,
+                            speakingIndex: _speakingIndex,
+                            flutterTts: _flutterTts,
+                            onTtsStop: () {
+                              setState(() { _speakingIndex = null; });
+                            },
+                            onTtsStart: (i) {
+                              setState(() { _speakingIndex = i; });
+                            },
+                          );
                         }
 
                         return BotMessageBubble(
