@@ -39,7 +39,7 @@ class CodeElementBuilder extends MarkdownElementBuilder {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A2A), // Unified dark grey background
+        color: const Color(0xFF1A1A1A), // Darker unified background
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
@@ -79,31 +79,23 @@ class CodeElementBuilder extends MarkdownElementBuilder {
             ),
           ),
           // Code Block
-          ClipRRect(
-            borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(16),
-              bottomRight: Radius.circular(16),
-            ),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
-              child: DefaultTextStyle(
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  fontSize: 14,
-                  height: 1.5,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
+            child: HighlightView(
+              element.textContent,
+              language: language.isEmpty ? 'plaintext' : language,
+              theme: Map<String, TextStyle>.from(atomOneDarkTheme)
+                ..update(
+                  'root',
+                  (style) => style.copyWith(backgroundColor: Colors.transparent),
+                  ifAbsent: () => const TextStyle(backgroundColor: Colors.transparent),
                 ),
-                child: HighlightView(
-                  element.textContent,
-                  language: language.isEmpty ? 'plaintext' : language,
-                  theme: atomOneDarkTheme,
-                  padding: EdgeInsets.zero,
-                  textStyle: const TextStyle(
-                    fontFamily: 'monospace',
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
+              padding: EdgeInsets.zero,
+              textStyle: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 14,
+                height: 1.5,
               ),
             ),
           ),
