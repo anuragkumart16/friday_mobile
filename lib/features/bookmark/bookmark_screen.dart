@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'models/bookmarked_chat.dart';
 import 'services/bookmark_service.dart';
+import '../chat/chat_screen.dart';
 
 class BookmarkScreen extends StatefulWidget {
   const BookmarkScreen({super.key});
@@ -95,6 +96,12 @@ class _BookmarkScreenState extends State<BookmarkScreen> {
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => ChatScreen(existingChat: chat)),
+                          );
+                        },
                         leading: Container(
                           width: 40,
                           height: 40,

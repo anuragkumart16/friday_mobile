@@ -3,6 +3,8 @@ import '../bookmark/bookmark_screen.dart';
 import '../bookmark/models/bookmarked_chat.dart';
 import '../bookmark/services/bookmark_service.dart';
 import '../chat/services/chat_history_service.dart';
+import '../chat/chat_screen.dart';
+import '../settings/settings_screen.dart';
 
 class MenuScreen extends StatefulWidget {
   const MenuScreen({super.key});
@@ -110,6 +112,18 @@ class _MenuScreenState extends State<MenuScreen> {
                     _loadData(); // refresh after returning
                   },
                 ),
+                
+                const SizedBox(height: 8),
+
+                // Settings navigation
+                _buildMenuItem(
+                  context,
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  onTap: () {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  },
+                ),
               ],
             ),
     );
@@ -119,13 +133,20 @@ class _MenuScreenState extends State<MenuScreen> {
     final isBookmarked = _bookmarkedIds.contains(chat.id);
     final messageCount = chat.messages.length;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => ChatScreen(existingChat: chat)),
+        );
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(10),
+        ),
       child: Row(
         children: [
           Icon(
@@ -155,6 +176,7 @@ class _MenuScreenState extends State<MenuScreen> {
             ),
           ],
         ],
+      ),
       ),
     );
   }

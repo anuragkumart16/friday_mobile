@@ -1,4 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import '../settings/services/settings_service.dart';
+
 import 'package:flutter_tts/flutter_tts.dart';
 import 'widgets/chat_top_bar.dart';
 import 'widgets/user_message_bubble.dart';
@@ -9,7 +13,9 @@ import '../bookmark/services/bookmark_service.dart';
 import 'services/chat_history_service.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
+  final BookmarkedChat? existingChat;
+
+  const ChatScreen({super.key, this.existingChat});
 
   @override
   State<ChatScreen> createState() => _ChatScreenState();
@@ -18,14 +24,19 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  final List<Map<String, String>> _messages = [];
+  late List<Map<String, String>> _messages;
   final FlutterTts _flutterTts = FlutterTts();
-  final String _sessionId = DateTime.now().millisecondsSinceEpoch.toString();
+  late String _sessionId;
   int? _speakingIndex;
 
   @override
   void initState() {
     super.initState();
+    _sessionId = widget.existingChat?.id ?? DateTime.now().millisecondsSinceEpoch.toString();
+    _messages = widget.existingChat != null 
+        ? List<Map<String, String>>.from(widget.existingChat!.messages) 
+        : [];
+
     _flutterTts.setCompletionHandler(() {
       setState(() { _speakingIndex = null; });
     });
@@ -34,18 +45,75 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  void _sendMessage() {
+  Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
     setState(() {
       _messages.add({'role': 'user', 'content': text});
-      _messages.add({'role': 'bot', 'content': _getExampleResponse()});
     });
 
     _messageController.clear();
-    _autoSaveChat();
+    _scrollToBottom();
 
+    try {
+      final baseUrl = await SettingsService.getBaseUrl();
+      if (baseUrl.isEmpty) {
+        setState(() {
+          _messages.add({'role': 'bot', 'content': 'Please configure the Remote Setting in Menu > Settings first.'});
+        });
+        _autoSaveChat();
+        _scrollToBottom();
+        return;
+      }
+
+      final url = Uri.parse('$baseUrl/api/v1/chat');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'message': text,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final dynamic data = jsonDecode(response.body);
+        String botContent = '';
+        if (data is Map) {
+          if (data.containsKey('content')) {
+            botContent = data['content'].toString();
+          } else if (data.containsKey('response')) {
+            botContent = data['response'].toString();
+          } else if (data.containsKey('message')) {
+            botContent = data['message'].toString();
+          } else if (data.containsKey('answer')) {
+            botContent = data['answer'].toString();
+          } else {
+            botContent = response.body;
+          }
+        } else {
+          botContent = response.body;
+        }
+
+        setState(() {
+          _messages.add({'role': 'bot', 'content': botContent});
+        });
+      } else {
+        setState(() {
+          _messages.add({'role': 'bot', 'content': 'Error: ${response.statusCode}'});
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _messages.add({'role': 'bot', 'content': 'Failed to connect: $e'});
+      });
+    }
+
+    _autoSaveChat();
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
@@ -57,39 +125,6 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  String _getExampleResponse() {
-    return '''
-# Welcome to Friday
-
-Here's what I can help you with:
-
-## Features
-
-- **Chat** with natural language
-- **Code generation** and debugging
-- **Summarization** of long texts
-
-### Ordered Steps
-
-1. Ask me a question
-2. I'll process your request
-3. Get your answer instantly
-
----
-
-Here's an example code snippet:
-
-```dart
-void main() {
-  print('Hello from Friday!');
-}
-```
-
-> **Note:** I'm still learning, so responses are placeholders for now.
-
-Feel free to ask me anything!
-''';
-  }
 
   String _getChatTitle() {
     final firstUserMsg = _messages.firstWhere(
