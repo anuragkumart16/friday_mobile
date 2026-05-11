@@ -5,6 +5,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import '../../../shared/styles/markdown_style.dart';
 import '../../../shared/utils/tts_helper.dart';
+import '../../../shared/widgets/code_element_builder.dart';
 import '../../vault/models/vault_item.dart';
 import '../../vault/services/vault_service.dart';
 
@@ -37,6 +38,9 @@ class BotMessageBubble extends StatelessWidget {
             data: content,
             selectable: true,
             styleSheet: chatMarkdownStyle(),
+            builders: {
+              'code': CodeElementBuilder(),
+            },
           ),
           const SizedBox(height: 8),
           // Action buttons row

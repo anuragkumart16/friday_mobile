@@ -6,6 +6,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 
 import '../../shared/styles/markdown_style.dart';
 import '../../shared/widgets/selection_search_app_bar.dart';
+import '../../shared/widgets/code_element_builder.dart';
 import 'models/vault_item.dart';
 import 'services/vault_service.dart';
 
@@ -272,6 +273,9 @@ class _VaultScreenState extends State<VaultScreen> {
                                         data: item.content,
                                         selectable: !_isSelecting,
                                         styleSheet: chatMarkdownStyle(),
+                                        builders: {
+                                          'code': CodeElementBuilder(),
+                                        },
                                       ),
                                 const SizedBox(height: 16),
                                 if (!_isSelecting)
